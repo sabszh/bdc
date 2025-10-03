@@ -1,0 +1,846 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Bot de Continuonus • Car Mode</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        --bg: #000;
+        --panel: #0a0a0a;
+        --edge: #2a0000;
+        --accent: #ff0000;
+        --accent-glow: #ff3333;
+        --text: #ff6666;
+        --text-bright: #ff9999;
+        --scanner-red: #ff0000;
+        --dashboard-bg: #0d0d0d;
+      }
+      
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body, #root { height: 100%; overflow: hidden; }
+      body { 
+        background: var(--bg); 
+        color: var(--text); 
+        font-family: 'Share Tech Mono', monospace;
+        user-select: none;
+      }
+
+      /* BOOT SEQUENCE */
+      .boot-screen {
+        position: fixed;
+        inset: 0;
+        background: #000;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        opacity: 1;
+        transition: opacity 0.5s;
+      }
+      .boot-screen.hidden { opacity: 0; pointer-events: none; }
+      .boot-logo {
+        font-family: 'Orbitron', sans-serif;
+        font-size: 48px;
+        font-weight: 700;
+        color: var(--accent);
+        text-shadow: 0 0 20px var(--accent), 0 0 40px var(--accent);
+        letter-spacing: 4px;
+        animation: pulse 2s ease-in-out infinite;
+      }
+      .boot-status {
+        margin-top: 30px;
+        font-size: 16px;
+        color: var(--text-bright);
+        font-family: 'Share Tech Mono', monospace;
+      }
+      .boot-progress {
+        width: 300px;
+        height: 4px;
+        background: #222;
+        margin-top: 20px;
+        border-radius: 2px;
+        overflow: hidden;
+      }
+      .boot-progress-bar {
+        height: 100%;
+        background: linear-gradient(90deg, var(--accent), var(--accent-glow));
+        width: 0%;
+        animation: loading 3s ease-out forwards;
+        box-shadow: 0 0 10px var(--accent);
+      }
+      @keyframes loading {
+        to { width: 100%; }
+      }
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+      }
+
+      /* MAIN LAYOUT */
+      .wrap { 
+        height: 100%; 
+        display: grid; 
+        grid-template-rows: auto auto auto 1fr auto auto; 
+        gap: 8px; 
+        padding: 10px;
+        background: radial-gradient(ellipse at 50% 0%, rgba(40,0,0,.3), #000 70%);
+      }
+
+      /* HEADER */
+      .main-header {
+        text-align: center;
+        padding: 15px;
+        background: linear-gradient(180deg, #1a0000 0%, #0a0a0a 100%);
+        border: 2px solid var(--edge);
+        border-radius: 12px;
+        box-shadow: inset 0 0 20px rgba(0,0,0,0.8), 0 0 30px rgba(255,0,0,0.2);
+      }
+      .main-title {
+        font-family: 'Orbitron', sans-serif;
+        font-size: 32px;
+        font-weight: 700;
+        color: var(--accent);
+        text-shadow: 0 0 20px var(--accent), 0 0 40px var(--accent);
+        letter-spacing: 4px;
+        margin: 0;
+      }
+
+      /* ANIMATED SCANNER BAR */
+      .scanner-bar {
+        height: 40px;
+        background: #0a0a0a;
+        border: 2px solid var(--edge);
+        border-radius: 8px;
+        position: relative;
+        overflow: hidden;
+        box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+      }
+      .scanner-lights {
+        display: flex;
+        gap: 4px;
+        padding: 8px;
+        height: 100%;
+        align-items: center;
+        justify-content: center;
+      }
+      .scanner-led {
+        width: 8px;
+        height: 24px;
+        background: #1a0000;
+        border-radius: 2px;
+        transition: all 0.1s;
+      }
+      .scanner-sweep {
+        position: absolute;
+        top: 0;
+        left: -100px;
+        width: 100px;
+        height: 100%;
+        background: linear-gradient(90deg, 
+          transparent, 
+          rgba(255,0,0,0.3), 
+          var(--accent), 
+          rgba(255,0,0,0.3), 
+          transparent
+        );
+        animation: sweep 2s ease-in-out infinite;
+        filter: blur(8px);
+      }
+      .scanner-sweep.active {
+        animation: sweep 1s ease-in-out infinite;
+      }
+      @keyframes sweep {
+        0% { left: -100px; }
+        100% { left: 100%; }
+      }
+
+      /* DASHBOARD STATS */
+      .dashboard {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+      }
+      .stat-box {
+        background: linear-gradient(180deg, #120000 0%, #080000 100%);
+        border: 2px solid var(--edge);
+        border-radius: 8px;
+        padding: 10px;
+        box-shadow: inset 0 0 15px #000;
+        text-align: center;
+      }
+      .stat-label {
+        font-family: 'Orbitron', sans-serif;
+        font-size: 10px;
+        color: var(--text);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 5px;
+      }
+      .stat-value {
+        font-family: 'Orbitron', sans-serif;
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--accent-glow);
+        text-shadow: 0 0 10px var(--accent);
+      }
+
+      /* VOICE WAVEFORM */
+      .waveform-container {
+        height: 60px;
+        background: #0a0a0a;
+        border: 2px solid var(--edge);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+        padding: 10px;
+        box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+      }
+      .waveform-bar {
+        width: 4px;
+        height: 8px;
+        background: #2a0000;
+        border-radius: 2px;
+        transition: all 0.1s;
+      }
+      .waveform-bar.active {
+        background: var(--accent);
+        box-shadow: 0 0 8px var(--accent);
+        animation: wave 0.5s ease-in-out infinite alternate;
+      }
+      @keyframes wave {
+        from { height: 8px; }
+        to { height: 40px; }
+      }
+
+      /* CHAT PANEL */
+      .panel {
+        background: var(--dashboard-bg);
+        border: 2px solid var(--edge);
+        border-radius: 12px;
+        box-shadow: inset 0 0 30px #000;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        overflow: hidden;
+      }
+      .panel-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-family: 'Orbitron', sans-serif;
+        font-size: 12px;
+        color: var(--text-bright);
+        padding: 8px;
+        background: #0a0a0a;
+        border: 1px solid var(--edge);
+        border-radius: 6px;
+      }
+
+      /* CHAT MESSAGES */
+      .chat {
+        flex: 1;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 10px;
+        font-size: 18px;
+        line-height: 1.5;
+        background: radial-gradient(ellipse at 50% 0%, rgba(40,0,0,.2), transparent 60%);
+        border-radius: 8px;
+      }
+      .msg {
+        margin: 12px 0;
+        animation: slideIn 0.3s ease-out;
+      }
+      @keyframes slideIn {
+        from { opacity: 0; transform: translateX(-20px); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+      .loading-dots {
+        display: inline-block;
+        animation: blink 1.4s infinite;
+      }
+      .loading-dots::after {
+        content: '...';
+        animation: dots 1.4s infinite;
+      }
+      @keyframes dots {
+        0%, 20% { content: '.'; }
+        40% { content: '..'; }
+        60%, 100% { content: '...'; }
+      }
+      @keyframes blink {
+        0%, 50%, 100% { opacity: 1; }
+        25%, 75% { opacity: 0.3; }
+      }
+      .meta {
+        font-family: 'Orbitron', sans-serif;
+        font-size: 11px;
+        color: var(--text);
+        margin-bottom: 4px;
+        letter-spacing: 2px;
+      }
+      .user { color: #ff9999; }
+      .bot { 
+        color: var(--accent-glow);
+        text-shadow: 0 0 5px rgba(255,0,0,0.3);
+      }
+      .intro {
+        color: var(--text);
+        text-align: center;
+        font-style: italic;
+        opacity: 0.7;
+      }
+
+      /* CONTROL BUTTONS */
+      .controls {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 8px;
+      }
+      .control-btn {
+        background: linear-gradient(180deg, #2a0000 0%, #150000 100%);
+        border: 3px solid var(--edge);
+        border-radius: 12px;
+        padding: 18px;
+        font-family: 'Orbitron', sans-serif;
+        font-size: 16px;
+        font-weight: 700;
+        color: var(--text-bright);
+        cursor: pointer;
+        transition: all 0.2s;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        box-shadow: 0 0 15px rgba(0,0,0,0.5), inset 0 0 10px rgba(0,0,0,0.3);
+        position: relative;
+        overflow: hidden;
+      }
+      .control-btn:before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(180deg, rgba(255,255,255,0.1), transparent);
+        opacity: 0;
+        transition: opacity 0.2s;
+      }
+      .control-btn:hover:before { opacity: 1; }
+      .control-btn:active {
+        transform: scale(0.98);
+        box-shadow: 0 0 20px var(--accent), inset 0 0 15px rgba(255,0,0,0.3);
+      }
+      .control-btn.active {
+        background: linear-gradient(180deg, #550000 0%, #2a0000 100%);
+        border-color: var(--accent);
+        box-shadow: 0 0 25px var(--accent), inset 0 0 20px rgba(255,0,0,0.4);
+        animation: btnPulse 1s ease-in-out infinite;
+      }
+      @keyframes btnPulse {
+        0%, 100% { box-shadow: 0 0 25px var(--accent), inset 0 0 20px rgba(255,0,0,0.4); }
+        50% { box-shadow: 0 0 35px var(--accent), inset 0 0 25px rgba(255,0,0,0.6); }
+      }
+      .control-btn:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+      }
+
+      /* INPUT AREA */
+      .input-area {
+        display: grid;
+        grid-template-columns: 1fr auto auto;
+        gap: 8px;
+      }
+      input {
+        background: #0a0a0a;
+        border: 3px solid var(--edge);
+        border-radius: 10px;
+        padding: 16px;
+        color: var(--text-bright);
+        font-size: 18px;
+        font-family: 'Share Tech Mono', monospace;
+        outline: none;
+        box-shadow: inset 0 0 15px rgba(0,0,0,0.8);
+      }
+      input::placeholder { color: #663333; }
+      input:focus {
+        border-color: var(--accent);
+        box-shadow: inset 0 0 15px rgba(0,0,0,0.8), 0 0 15px rgba(255,0,0,0.3);
+      }
+
+      /* SCROLLBAR */
+      .chat::-webkit-scrollbar { width: 8px; }
+      .chat::-webkit-scrollbar-track { background: #0a0a0a; border-radius: 4px; }
+      .chat::-webkit-scrollbar-thumb { background: #4a0000; border-radius: 4px; }
+      .chat::-webkit-scrollbar-thumb:hover { background: #6a0000; }
+
+      /* RESPONSIVE */
+      @media (max-width: 768px) {
+        .dashboard { grid-template-columns: repeat(2, 1fr); }
+        .controls { grid-template-columns: 1fr 1fr; }
+        .input-area { grid-template-columns: 1fr auto; }
+        .boot-logo { font-size: 32px; }
+        .stat-value { font-size: 16px; }
+        .main-title { font-size: 24px; }
+      }
+
+      /* LANDSCAPE MODE (for car tablets) */
+      @media (orientation: landscape) and (max-height: 600px) {
+        .wrap { grid-template-rows: auto auto auto 1fr auto; gap: 6px; padding: 8px; }
+        .scanner-bar { height: 30px; }
+        .waveform-container { height: 40px; }
+        .control-btn { padding: 12px; font-size: 14px; }
+        .chat { font-size: 16px; }
+        .main-title { font-size: 20px; }
+        .main-header { padding: 10px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <!-- React via CDN -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+    <script>
+      const { useState, useRef, useEffect } = React;
+
+      function BootScreen({ onComplete }) {
+        const [status, setStatus] = useState('INITIALISERER SYSTEMER...');
+        
+        useEffect(() => {
+          const steps = [
+            { msg: 'INITIALISERER SYSTEMER...', delay: 500 },
+            { msg: 'INDLÆSER NEURALT NETVÆRK...', delay: 800 },
+            { msg: 'FORBINDER TIL HUKOMMELSESBANKER...', delay: 1200 },
+            { msg: 'KALIBRERER STEMMESYNTESE...', delay: 1800 },
+            { msg: 'SYSTEM KLAR', delay: 2800 },
+          ];
+          
+          steps.forEach(({ msg, delay }) => {
+            setTimeout(() => setStatus(msg), delay);
+          });
+          
+          setTimeout(() => onComplete(), 3200);
+        }, []);
+        
+        return React.createElement('div', { className: 'boot-screen' },
+          React.createElement('div', { className: 'boot-logo' }, 'BOT DE CONTINUONUS'),
+          React.createElement('div', { className: 'boot-status' }, status),
+          React.createElement('div', { className: 'boot-progress' },
+            React.createElement('div', { className: 'boot-progress-bar' })
+          )
+        );
+      }
+
+      function ScannerBar({ active }) {
+        return React.createElement('div', { className: 'scanner-bar' },
+          React.createElement('div', { className: 'scanner-lights' },
+            [...Array(20)].map((_, i) => 
+              React.createElement('div', { key: i, className: 'scanner-led' })
+            )
+          ),
+          React.createElement('div', { className: 'scanner-sweep' + (active ? ' active' : '') })
+        );
+      }
+
+      function Dashboard({ msgCount, audioPlaying, queueLength, responseTime }) {
+        return React.createElement('div', { className: 'dashboard' },
+          React.createElement('div', { className: 'stat-box' },
+            React.createElement('div', { className: 'stat-label' }, 'BESKEDER'),
+            React.createElement('div', { className: 'stat-value' }, msgCount)
+          ),
+          React.createElement('div', { className: 'stat-box' },
+            React.createElement('div', { className: 'stat-label' }, 'LYDSTATUS'),
+            React.createElement('div', { className: 'stat-value' }, audioPlaying ? 'AKTIV' : 'INAKTIV')
+          ),
+          React.createElement('div', { className: 'stat-box' },
+            React.createElement('div', { className: 'stat-label' }, 'KØ'),
+            React.createElement('div', { className: 'stat-value' }, queueLength)
+          ),
+          React.createElement('div', { className: 'stat-box' },
+            React.createElement('div', { className: 'stat-label' }, 'SVARTID'),
+            React.createElement('div', { className: 'stat-value' }, responseTime + 's')
+          )
+        );
+      }
+
+      function Waveform({ active }) {
+        return React.createElement('div', { className: 'waveform-container' },
+          [...Array(30)].map((_, i) => 
+            React.createElement('div', { 
+              key: i, 
+              className: 'waveform-bar' + (active && Math.random() > 0.3 ? ' active' : ''),
+              style: active ? { animationDelay: (i * 0.05) + 's' } : {}
+            })
+          )
+        );
+      }
+
+      function App() {
+        const [booting, setBooting] = useState(true);
+        const [msgs, setMsgs] = useState([]);
+        const [input, setInput] = useState('');
+        const [loading, setLoading] = useState(false);
+        const [loadingStage, setLoadingStage] = useState(0);
+        const [sessionId] = useState(() => 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9));
+        const [audioPlaying, setAudioPlaying] = useState(false);
+        const [audioReady, setAudioReady] = useState(false);
+        const [audioQueue, setAudioQueue] = useState([]);
+        const [responseTime, setResponseTime] = useState(0);
+        const [isListening, setIsListening] = useState(false);
+        const chatRef = useRef(null);
+        const audioEl = useRef(null);
+        const recognitionRef = useRef(null);
+        const loadingIntervalRef = useRef(null);
+
+        useEffect(() => {
+          if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
+        }, [msgs, loading]);
+
+        // Monitor audio element and its state
+        useEffect(() => {
+          console.log('[AUDIO] Component mounted');
+          const checkAudio = () => {
+            if (audioEl.current) {
+              console.log('[AUDIO] Audio element is available');
+              console.log('[AUDIO] Audio element ID:', audioEl.current.id);
+              console.log('[AUDIO] Current src:', audioEl.current.src ? 'loaded' : 'empty');
+              console.log('[AUDIO] Paused:', audioEl.current.paused);
+              console.log('[AUDIO] ReadyState:', audioEl.current.readyState);
+            } else {
+              console.error('[AUDIO] Audio element ref is NULL!');
+            }
+          };
+          
+          // Check immediately
+          checkAudio();
+          
+          // Check again after render completes
+          setTimeout(checkAudio, 50);
+          setTimeout(checkAudio, 200);
+        }, []);
+
+        useEffect(() => {
+          if (loading) {
+            setLoadingStage(0);
+            loadingIntervalRef.current = setInterval(() => {
+              setLoadingStage(s => (s + 1) % 5);
+            }, 1500);
+          } else {
+            if (loadingIntervalRef.current) {
+              clearInterval(loadingIntervalRef.current);
+              loadingIntervalRef.current = null;
+            }
+          }
+          return () => {
+            if (loadingIntervalRef.current) {
+              clearInterval(loadingIntervalRef.current);
+            }
+          };
+        }, [loading]);
+
+        // Set up audio event listeners AFTER boot screen completes
+        useEffect(() => {
+          // Don't set up listeners during boot - audio element doesn't exist yet!
+          if (booting) {
+            console.log('[AUDIO] Still booting, skipping listener setup');
+            return;
+          }
+          
+          console.log('[AUDIO] Boot complete, setting up audio listeners');
+          
+          // Wait for next tick to ensure element is rendered
+          const timer = setTimeout(() => {
+            const el = audioEl.current;
+            if (!el) {
+              console.error('[AUDIO] CRITICAL: Audio element still not available after boot!');
+              return;
+            }
+            
+            console.log('[AUDIO] Setting up event listeners on element:', el.id);
+            
+            const onPlay = () => {
+              console.log('[AUDIO] EVENT: Playing');
+              setAudioPlaying(true);
+              setAudioReady(true);
+            };
+            const onPause = () => {
+              console.log('[AUDIO] EVENT: Paused');
+              setAudioPlaying(false);
+            };
+            const onEnded = () => {
+              console.log('[AUDIO] EVENT: Ended');
+              setAudioPlaying(false);
+              // Check queue in the function, don't depend on it in useEffect
+              setTimeout(() => {
+                if (audioQueue.length > 0) {
+                  const next = audioQueue[0];
+                  setAudioQueue(q => q.slice(1));
+                  console.log('[AUDIO] Loading next from queue');
+                  el.src = 'data:audio/mpeg;base64,' + next;
+                  el.play().catch((err) => console.error('[AUDIO] Auto-play next failed:', err));
+                }
+              }, 100);
+            };
+            const onCanPlay = () => {
+              console.log('[AUDIO] EVENT: Can play - audio ready');
+              setAudioReady(true);
+            };
+            const onError = (e) => {
+              console.error('[AUDIO] EVENT: Error loading audio', e);
+              setAudioReady(false);
+            };
+            
+            el.addEventListener('play', onPlay);
+            el.addEventListener('pause', onPause);
+            el.addEventListener('ended', onEnded);
+            el.addEventListener('canplay', onCanPlay);
+            el.addEventListener('error', onError);
+            
+            console.log('[AUDIO] Event listeners attached successfully');
+          }, 100); // Slightly longer delay to ensure render completes
+          
+          return () => clearTimeout(timer);
+        }, [booting]); // Depend on booting - set up listeners when it becomes false
+
+        const playVoice = (b64) => {
+          const el = audioEl.current;
+          if (!el) {
+            console.error('[AUDIO] playVoice: No audio element!');
+            return;
+          }
+          
+          console.log('[AUDIO] playVoice called, currently playing:', audioPlaying);
+          
+          if (audioPlaying) {
+            // If already playing, add to queue
+            setAudioQueue(q => [...q, b64]);
+            console.log('[AUDIO] Added to queue, new queue length:', audioQueue.length + 1);
+          } else {
+            // Load the audio - don't set audioReady here, let canplay event handle it
+            console.log('[AUDIO] Loading new audio source');
+            el.src = 'data:audio/mpeg;base64,' + b64;
+            console.log('[AUDIO] Source set, attempting autoplay');
+            // Auto-play the first audio
+            el.play().then(() => {
+              console.log('[AUDIO] Autoplay SUCCESS');
+            }).catch((err) => {
+              console.error('[AUDIO] Autoplay FAILED:', err);
+              console.log('[AUDIO] User must click AFSPIL button');
+              // audioReady will be set by canplay event
+            });
+          }
+        };
+
+        const togglePlayPause = () => {
+          const el = audioEl.current;
+          console.log('[AUDIO] togglePlayPause clicked');
+          console.log('[AUDIO] - Element exists:', !!el);
+          console.log('[AUDIO] - Has src:', !!el?.src);
+          console.log('[AUDIO] - audioReady:', audioReady);
+          console.log('[AUDIO] - audioPlaying:', audioPlaying);
+          
+          if (!el || !el.src) {
+            console.error('[AUDIO] Cannot play: No audio loaded');
+            return;
+          }
+          
+          if (audioPlaying) {
+            console.log('[AUDIO] Pausing...');
+            el.pause();
+          } else {
+            console.log('[AUDIO] Playing...');
+            el.play().then(() => {
+              console.log('[AUDIO] Play SUCCESS');
+            }).catch((err) => {
+              console.error('[AUDIO] Play FAILED:', err);
+            });
+          }
+        };
+
+        const skipAudio = () => {
+          const el = audioEl.current;
+          if (!el) return;
+          
+          console.log('[AUDIO] Skipping, queue length:', audioQueue.length);
+          
+          el.pause();
+          el.currentTime = 0;
+          
+          if (audioQueue.length > 0) {
+            const next = audioQueue[0];
+            setAudioQueue(q => q.slice(1));
+            el.src = 'data:audio/mpeg;base64,' + next;
+            setAudioReady(true);
+            el.play().catch((err) => console.error('[AUDIO] Skip play failed:', err));
+          } else {
+            setAudioPlaying(false);
+            setAudioReady(false);
+          }
+        };
+
+        const send = async (e) => {
+          e.preventDefault();
+          const text = input.trim();
+          if (!text || loading) return;
+          
+          console.log('[FRONTEND] Sending:', text);
+          setInput('');
+          setMsgs(m => [...m, { role: 'user', text }]);
+          setLoading(true);
+
+          try {
+            const form = new URLSearchParams();
+            form.set('user_input', text);
+            form.set('session_id', sessionId);
+            form.set('user_name', 'Museumsdeltagere');
+            form.set('user_location', 'Bilen');
+            form.set('continuous_json', JSON.stringify({ keystrokes: text.length, ts: Date.now() }));
+
+            const startTime = Date.now();
+            const res = await fetch('/api/chat', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: form.toString()
+            });
+
+            const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+            setResponseTime(elapsed);
+
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+            const data = await res.json();
+            const botText = data.text || '(no response)';
+            setMsgs(m => [...m, { role: 'bot', text: botText }]);
+            
+            if (data.audio_b64) {
+              playVoice(data.audio_b64);
+            }
+            
+          } catch (error) {
+            console.error('[FRONTEND] ERROR:', error);
+            setMsgs(m => [...m, { role: 'bot', text: `Error: ${error.message}` }]);
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        const startVoice = () => {
+          const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+          if (!SR) {
+            alert('Stemmegenkendelse understøttes ikke');
+            return;
+          }
+          
+          if (isListening && recognitionRef.current) {
+            recognitionRef.current.stop();
+            setIsListening(false);
+            return;
+          }
+          
+          const recog = new SR();
+          recog.lang = 'da-DK';
+          recog.continuous = false;
+          recog.interimResults = false;
+          
+          recog.onstart = () => setIsListening(true);
+          recog.onend = () => setIsListening(false);
+          recog.onresult = (e) => {
+            const transcript = e.results[0][0].transcript;
+            setInput(transcript);
+            setIsListening(false);
+          };
+          recog.onerror = () => setIsListening(false);
+          
+          recog.start();
+          recognitionRef.current = recog;
+        };
+
+        if (booting) {
+          return React.createElement(BootScreen, { onComplete: () => setBooting(false) });
+        }
+
+        return React.createElement('div', { className: 'wrap' },
+          React.createElement('div', { className: 'main-header' },
+            React.createElement('h1', { className: 'main-title' }, 'BOT DE CONTINUONUS')
+          ),
+          React.createElement(ScannerBar, { active: loading || audioPlaying }),
+          React.createElement(Dashboard, { 
+            msgCount: msgs.length, 
+            audioPlaying: audioPlaying,
+            queueLength: audioQueue.length,
+            responseTime: responseTime
+          }),
+          React.createElement('div', { className: 'panel' },
+            React.createElement('div', { className: 'panel-head' },
+              React.createElement('span', null, '◉ KOMMUNIKATIONSTERMINAL'),
+              React.createElement('span', null, loading ? 'BEHANDLER...' : 'KLAR')
+            ),
+            React.createElement('div', { className: 'chat', ref: chatRef },
+              msgs.length === 0 && React.createElement('div', { className: 'intro' }, 
+                'Velkommen til Carte de Continuonus. Tryk TALK for at begynde...'
+              ),
+              msgs.map((m, i) => React.createElement('div', { key: i, className: 'msg' },
+                React.createElement('div', { className: 'meta ' + m.role }, 
+                  m.role === 'user' ? '→ DIG' : '← BOT'
+                ),
+                React.createElement('div', null, m.text)
+              )),
+              loading && React.createElement('div', { className: 'msg bot' },
+                React.createElement('div', { className: 'meta bot' }, '← BOT'),
+                React.createElement('div', null, 
+                  React.createElement('span', { className: 'loading-dots' }, 
+                    loadingStage === 0 ? 'Henter kildedata' :
+                    loadingStage === 1 ? 'Analyserer kollektive ønsker' :
+                    loadingStage === 2 ? 'Søger i samtalehistorik' :
+                    loadingStage === 3 ? 'Forbinder ekkoer fra fortiden' :
+                    'Genererer synsk besked'
+                  )
+                )
+              )
+            )
+          ),
+          React.createElement(Waveform, { active: audioPlaying }),
+          React.createElement('div', { className: 'controls' },
+            React.createElement('button', {
+              className: 'control-btn' + (isListening ? ' active' : ''),
+              onClick: startVoice,
+              type: 'button'
+            }, isListening ? '◉ LYTTER' : '🎤 TAL'),
+            React.createElement('button', {
+              className: 'control-btn' + (audioPlaying ? ' active' : ''),
+              onClick: togglePlayPause,
+              disabled: !audioReady
+            }, audioPlaying ? '⏸ PAUSE' : '▶ AFSPIL'),
+            React.createElement('button', {
+              className: 'control-btn',
+              onClick: skipAudio,
+              disabled: audioQueue.length === 0 && !audioPlaying
+            }, '⏭ SPRING OVER')
+          ),
+          React.createElement('form', { className: 'input-area', onSubmit: send },
+            React.createElement('input', {
+              value: input,
+              onChange: e => setInput(e.target.value),
+              placeholder: 'Skriv din besked...',
+              disabled: loading
+            }),
+            React.createElement('button', {
+              className: 'control-btn',
+              type: 'submit',
+              disabled: loading || !input.trim()
+            }, loading ? '...' : 'SEND')
+          ),
+          React.createElement('audio', { id: 'bot-audio', ref: audioEl, hidden: true })
+        );
+      }
+
+      ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+    </script>
+  </body>
+</html>
