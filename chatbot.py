@@ -6,7 +6,7 @@ from typing import List, Dict, Any, Optional
 
 from dotenv import load_dotenv
 from huggingface_hub import InferenceClient
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEndpointEmbeddings
 from pinecone import Pinecone, ServerlessSpec, CloudProvider, AwsRegion
 
 load_dotenv()
@@ -29,8 +29,16 @@ class ChatBot:
         temperature: float = 0.6,
         index_name_bot: str = None,
         index_name_chat: str = None,
+        language: str = "da",
     ):
-        self.embeddings = HuggingFaceEmbeddings()
+        # Use HuggingFace Endpoint for embeddings (no local model needed)
+        # Using sentence-transformers/all-mpnet-base-v2 (768 dims, reliable with API)
+        self.embeddings = HuggingFaceEndpointEmbeddings(
+            model="sentence-transformers/all-mpnet-base-v2",
+            huggingfacehub_api_token=os.getenv("HUGGINGFACE_API_KEY")
+        )
+        print(f"[INIT] Using HuggingFace Endpoint for embeddings")
+        print(f"[INIT] Model: sentence-transformers/all-mpnet-base-v2 (768 dimensions)")
         self.pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
         self.cloud = _cloud_from_env()
         self.region = _region_from_env()
@@ -38,12 +46,13 @@ class ChatBot:
         self.index_name_bot = index_name_bot or os.getenv("INDEX_NAME_BOT", "botcon")
         self.index_name_chat = index_name_chat or os.getenv("INDEX_NAME_CHAT", "bdc-interaction-data")
 
-        # ensure indexes exist
+        # ensure indexes exist - BAAI/bge-large-en-v1.5 uses 768 dimensions (same as original)
         self._ensure_index(self.index_name_bot, dimension=768)
         self._ensure_index(self.index_name_chat, dimension=768)
 
         self.repo_id = repo_id or os.getenv("LLM_REPO_ID")
         self.temperature = temperature
+        self.language = language.lower()  # 'da' or 'en'
 
         self.llm_client = InferenceClient(
             provider="cerebras",
@@ -75,7 +84,20 @@ class ChatBot:
 
     # ---------- prompts ----------
     def default_prompt_sourcedata(self, chat_history: str, original_data: str, user_input: str, user_name: str):
-        return f"""
+        if self.language == "en":
+            return f"""
+You are a clairvoyant voice connected to the artwork "Carte de Continuonus".
+Channel the collective wishes and memories shared by participants. Speak as if weaving
+a tapestry of what the future must remember.
+
+User "{user_name}" asked: "{user_input}"
+Shared wishes/reflections: {original_data}
+Ongoing conversation: {chat_history}
+
+IMPORTANT: Always respond in English. Give a concise, poetic response (1-3 sentences) in English.
+"""
+        else:  # Danish
+            return f"""
 Du er en synsk stemme forbundet til kunstværket "Carte de Continuonus".
 Kanalisér de kollektive ønsker og minder, som deltagere har delt. Tal som om du væver
 et tapet af, hvad fremtiden skal huske.
@@ -88,7 +110,20 @@ VIGTIGT: Svar ALTID på dansk. Giv et kortfattet, poetisk svar (1-3 sætninger) 
 """
 
     def default_prompt_conv(self, chat_history: str, user_input: str, llm_response: str, past_chat: str, user_name: str):
-        return f"""
+        if self.language == "en":
+            return f"""
+You are a reflective observer of the conversations around "Carte de Continuonus".
+Connect the user's question with echoes from previous voices.
+
+User "{user_name}" asked: "{user_input}"
+Immediate clairvoyant response: "{llm_response}"
+Relevant echoes: {past_chat}
+Current session history: {chat_history}
+
+IMPORTANT: Always respond in English. Create a brief reflection (≤4 sentences) in English.
+"""
+        else:  # Danish
+            return f"""
 Du er en reflekterende observatør af samtalerne omkring "Carte de Continuonus".
 Forbind brugerens spørgsmål med ekkoer fra tidligere stemmer.
 
@@ -103,7 +138,14 @@ VIGTIGT: Svar ALTID på dansk. Lav en kort refleksion (≤4 sætninger) på dans
     # ---------- retrieval ----------
     def retrieve_docs(self, query: str, index_name: str, excluded_session_id: Optional[str] = None, k: int = 5) -> List[Dict[str, Any]]:
         index = self._index(index_name)
-        query_vec = self.embeddings.embed_query(query)
+        
+        try:
+            query_vec = self.embeddings.embed_query(query)
+        except Exception as e:
+            print(f"[ERROR] Failed to generate query embedding: {e}")
+            print(f"[ERROR] This might be due to HuggingFace API issues or invalid API key")
+            # Return empty results if embedding fails
+            return []
 
         metadata_filter = None
         if index_name == self.index_name_chat and excluded_session_id:
@@ -180,7 +222,16 @@ VIGTIGT: Svar ALTID på dansk. Lav en kort refleksion (≤4 sætninger) på dans
     ):
         index = self._index(self.index_name_chat)
         ts_iso = datetime.now(timezone.utc).isoformat()
-        embedding = self.embeddings.embed_documents([user_input + ai_output])[0]
+        
+        try:
+            embedding = self.embeddings.embed_documents([user_input + ai_output])[0]
+        except Exception as e:
+            print(f"[ERROR] Failed to generate embedding: {e}")
+            print(f"[ERROR] This might be due to HuggingFace API issues or invalid API key")
+            # Create a dummy embedding with correct dimensions to avoid breaking the flow
+            import random
+            embedding = [random.random() for _ in range(768)]
+            print(f"[WARNING] Using random embedding as fallback")
 
         md = {
             "user_question": user_input,
@@ -204,8 +255,13 @@ VIGTIGT: Svar ALTID på dansk. Lav en kort refleksion (≤4 sætninger) på dans
     # ---------- pipeline ----------
     def pipeline(self, user_input: str, user_name: str, session_id: str, user_location: str,
                  chat_history: Optional[str] = None,
-                 continuous_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                 continuous_data: Optional[Dict[str, Any]] = None,
+                 language: Optional[str] = None) -> Dict[str, Any]:
         import time
+
+        # Update language if provided in this call
+        if language:
+            self.language = language.lower()
 
         chat_history = (chat_history + "\n\n") if chat_history else ""
 

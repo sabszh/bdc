@@ -354,6 +354,13 @@
         grid-template-columns: 1fr auto auto;
         gap: 8px;
       }
+      .start-btn {
+        grid-column: 1 / -1;
+        font-size: 32px !important;
+        padding: 30px !important;
+        font-weight: 700;
+        letter-spacing: 4px;
+      }
       input {
         background: #0a0a0a;
         border: 3px solid var(--edge);
@@ -387,6 +394,56 @@
         .main-title { font-size: 24px; }
       }
 
+      /* LANGUAGE SELECTOR */
+      .language-selector {
+        position: fixed;
+        inset: 0;
+        background: #000;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        gap: 40px;
+      }
+      .language-selector.hidden { display: none; }
+      .language-title {
+        font-family: 'Orbitron', sans-serif;
+        font-size: 36px;
+        font-weight: 700;
+        color: var(--accent);
+        text-shadow: 0 0 20px var(--accent), 0 0 40px var(--accent);
+        letter-spacing: 4px;
+        margin-bottom: 20px;
+      }
+      .language-buttons {
+        display: flex;
+        gap: 30px;
+      }
+      .language-btn {
+        font-family: 'Orbitron', sans-serif;
+        font-size: 32px;
+        font-weight: 700;
+        padding: 40px 80px;
+        background: linear-gradient(180deg, #1a0000 0%, #0a0a0a 100%);
+        border: 3px solid var(--edge);
+        border-radius: 12px;
+        color: var(--accent-glow);
+        cursor: pointer;
+        transition: all 0.3s;
+        box-shadow: 0 0 30px rgba(255,0,0,0.2), inset 0 0 20px rgba(0,0,0,0.8);
+        text-shadow: 0 0 10px var(--accent);
+      }
+      .language-btn:hover {
+        background: linear-gradient(180deg, #2a0000 0%, #1a0a0a 100%);
+        border-color: var(--accent);
+        box-shadow: 0 0 50px rgba(255,0,0,0.5), inset 0 0 30px rgba(0,0,0,0.8);
+        transform: scale(1.05);
+      }
+      .language-btn:active {
+        transform: scale(0.98);
+      }
+
       /* LANDSCAPE MODE (for car tablets) */
       @media (orientation: landscape) and (max-height: 600px) {
         .wrap { grid-template-rows: auto auto auto 1fr auto; gap: 6px; padding: 8px; }
@@ -396,6 +453,8 @@
         .chat { font-size: 16px; }
         .main-title { font-size: 20px; }
         .main-header { padding: 10px; }
+        .language-title { font-size: 24px; }
+        .language-btn { font-size: 20px; padding: 25px 50px; }
       }
     </style>
   </head>
@@ -409,18 +468,24 @@
     <script>
       const { useState, useRef, useEffect } = React;
 
-      function BootScreen({ onComplete }) {
-        const [status, setStatus] = useState('INITIALISERER SYSTEMER...');
+      function BootScreen({ onComplete, language }) {
+        const steps = language === 'en' ? [
+          { msg: 'INITIALIZING SYSTEMS...', delay: 500 },
+          { msg: 'LOADING NEURAL NETWORK...', delay: 800 },
+          { msg: 'CONNECTING TO MEMORY BANKS...', delay: 1200 },
+          { msg: 'CALIBRATING VOICE SYNTHESIS...', delay: 1800 },
+          { msg: 'SYSTEM READY', delay: 2800 },
+        ] : [
+          { msg: 'INITIALISERER SYSTEMER...', delay: 500 },
+          { msg: 'INDLÆSER NEURALT NETVÆRK...', delay: 800 },
+          { msg: 'FORBINDER TIL HUKOMMELSESBANKER...', delay: 1200 },
+          { msg: 'KALIBRERER STEMMESYNTESE...', delay: 1800 },
+          { msg: 'SYSTEM KLAR', delay: 2800 },
+        ];
+        
+        const [status, setStatus] = useState(steps[0].msg);
         
         useEffect(() => {
-          const steps = [
-            { msg: 'INITIALISERER SYSTEMER...', delay: 500 },
-            { msg: 'INDLÆSER NEURALT NETVÆRK...', delay: 800 },
-            { msg: 'FORBINDER TIL HUKOMMELSESBANKER...', delay: 1200 },
-            { msg: 'KALIBRERER STEMMESYNTESE...', delay: 1800 },
-            { msg: 'SYSTEM KLAR', delay: 2800 },
-          ];
-          
           steps.forEach(({ msg, delay }) => {
             setTimeout(() => setStatus(msg), delay);
           });
@@ -433,6 +498,22 @@
           React.createElement('div', { className: 'boot-status' }, status),
           React.createElement('div', { className: 'boot-progress' },
             React.createElement('div', { className: 'boot-progress-bar' })
+          )
+        );
+      }
+
+      function LanguageSelector({ onSelect }) {
+        return React.createElement('div', { className: 'language-selector' },
+          React.createElement('div', { className: 'language-title' }, 'VÆLG SPROG / SELECT LANGUAGE'),
+          React.createElement('div', { className: 'language-buttons' },
+            React.createElement('button', {
+              className: 'language-btn',
+              onClick: () => onSelect('da')
+            }, 'DANSK'),
+            React.createElement('button', {
+              className: 'language-btn',
+              onClick: () => onSelect('en')
+            }, 'ENGLISH')
           )
         );
       }
@@ -482,6 +563,9 @@
       }
 
       function App() {
+        const [languageSelected, setLanguageSelected] = useState(false);
+        const [language, setLanguage] = useState('da');
+        const [stage, setStage] = useState('START'); // START, WELCOME, MEMORY_1, MEMORY_2, QUESTION_1, QUESTION_2, GOODBYE
         const [booting, setBooting] = useState(true);
         const [msgs, setMsgs] = useState([]);
         const [input, setInput] = useState('');
@@ -493,10 +577,32 @@
         const [audioQueue, setAudioQueue] = useState([]);
         const [responseTime, setResponseTime] = useState(0);
         const [isListening, setIsListening] = useState(false);
+        const [musicPlaying, setMusicPlaying] = useState(false);
         const chatRef = useRef(null);
         const audioEl = useRef(null);
+        const musicEl = useRef(null);
         const recognitionRef = useRef(null);
         const loadingIntervalRef = useRef(null);
+
+        // Scripted messages for guided experience
+        const scripts = {
+          da: {
+            WELCOME: "Hej, sikke en lang mærkelig tur vi har været på, men der er stadig en lang vej forude. Velkommen til vores køretøj. Vi er Bot de ContinuOnus, en AI-genereret chatbot, der taler med kunstneren Helene Nymanns klonede stemme.\n\nVi har måske hendes stemme, men vi taler gennem et datasæt eller rettere gennem oplevelserne fra tusindvis af mennesker, der var her før dig. De har alle sammen delt, hvad de husker, som de vil have fremtiden til at huske. De har placeret denne erindring på en hjemmeside kendt som continuonus. På hjemmesiden dyrkes et kort kendt som Carte de Continuonus.\n\nLad os nu rejse gennem det kort. Her kan du dele noget, du føler er vigtigt for fremtiden at huske, og du kan spørge os om, hvad tidligere besøgende delte.",
+            MEMORY_1: "Del venligst en erindring? Noget du gerne vil have, at folk i fremtiden husker at huske. Tryk på Del-knappen, når du er færdig.",
+            MEMORY_2: "Vil du tilføje noget mere? Tryk på Del-knappen, når du er færdig.",
+            QUESTION_1: "Vil du nu spørge os om, hvad andre har følt var vigtigt for fremtiden at huske at huske? Du er i deres fremtid. Du kan spørge om følelser eller emner eller noget, du har spekuleret over. Tryk på Del-knappen, når du er færdig.",
+            QUESTION_2: "Vil du spørge om noget andet? Tryk på Del-knappen, når du er færdig.",
+            GOODBYE: "Tak fordi du tog denne del af rejsen med os. Du er også en del af det kontinuerlige landskab nu."
+          },
+          en: {
+            WELCOME: "Hello, what a long strange trip we've been on, but there's still a long road ahead. Welcome to our vehicle. We are Bot de ContinuOnus, an AI generated chatbot speaking in the cloned voice of the artist Helene Nymann.\n\nWe may have her voice, but we're speaking through a data set or rather through the experiences of thousands of people who were here before you. All of whom have shared what they remember that they want the future to remember. They have placed that memory onto a website known as continuonus. On the website a map known as Carte de Continuonus is being cultivated.\n\nNow let's journey through that map. In here you may share something that you feel is important for the future to remember and you can ask us about what previous visitors shared.",
+            MEMORY_1: "Please share a memory? Something you'd like those people in the future to remember to remember. Press the Share button when you're done.",
+            MEMORY_2: "Would you like to add anything else? Press the Share button when you're done.",
+            QUESTION_1: "Now would you ask us about what others have felt it was important for the future to remember to remember? You are in their future. You can ask about emotions, or topics, or something you've been wondering about. Press the Share button when you're done.",
+            QUESTION_2: "Would you like to ask something else? Press the Share button when you're done.",
+            GOODBYE: "Thank you for taking this part of the journey with us. You too are part of the continuOnus landscape now."
+          }
+        };
 
         useEffect(() => {
           if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
@@ -686,10 +792,27 @@
 
         const send = async (e) => {
           e.preventDefault();
+          
+          // Handle special stages
+          if (stage === 'START') {
+            handleStart();
+            return;
+          }
+          
+          if (stage === 'WELCOME') {
+            advanceStage(); // Move to MEMORY_1
+            return;
+          }
+          
+          if (stage === 'GOODBYE') {
+            // End experience
+            return;
+          }
+          
           const text = input.trim();
           if (!text || loading) return;
           
-          console.log('[FRONTEND] Sending:', text);
+          console.log('[FRONTEND] Sending:', text, 'Stage:', stage, 'Mode:', getStageMode());
           setInput('');
           setMsgs(m => [...m, { role: 'user', text }]);
           setLoading(true);
@@ -700,7 +823,9 @@
             form.set('session_id', sessionId);
             form.set('user_name', 'Museumsdeltagere');
             form.set('user_location', 'Bilen');
-            form.set('continuous_json', JSON.stringify({ keystrokes: text.length, ts: Date.now() }));
+            form.set('language', language);
+            form.set('mode', getStageMode());
+            form.set('continuous_json', JSON.stringify({ keystrokes: text.length, ts: Date.now(), stage: stage }));
 
             const startTime = Date.now();
             const res = await fetch('/api/chat', {
@@ -716,10 +841,39 @@
 
             const data = await res.json();
             const botText = data.text || '(no response)';
-            setMsgs(m => [...m, { role: 'bot', text: botText }]);
             
-            if (data.audio_b64) {
-              playVoice(data.audio_b64);
+            // Only show bot response for QUESTION stages, not MEMORY stages
+            if (getStageMode() === 'question') {
+              setMsgs(m => [...m, { role: 'bot', text: botText }]);
+              
+              if (data.audio_b64) {
+                playVoice(data.audio_b64);
+                
+                // Wait for ALL audio (including queue) to finish before advancing
+                const el = audioEl.current;
+                if (el) {
+                  const checkAndAdvance = () => {
+                    // Check if queue is empty and audio has ended
+                    if (audioQueue.length === 0 && el.paused) {
+                      console.log('[STAGE] All audio finished, advancing stage in 2 seconds');
+                      el.removeEventListener('ended', checkAndAdvance);
+                      setTimeout(() => advanceStage(), 2000); // 2 second pause after audio ends
+                    } else {
+                      console.log('[STAGE] Still audio in queue or playing, waiting...');
+                    }
+                  };
+                  el.addEventListener('ended', checkAndAdvance);
+                } else {
+                  // Fallback if no audio element
+                  setTimeout(() => advanceStage(), 5000);
+                }
+              } else {
+                // No audio, advance after short delay
+                setTimeout(() => advanceStage(), 3000);
+              }
+            } else {
+              // Memory mode - advance quickly after saving
+              setTimeout(() => advanceStage(), 1500);
             }
             
           } catch (error) {
@@ -733,7 +887,7 @@
         const startVoice = () => {
           const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
           if (!SR) {
-            alert('Stemmegenkendelse understøttes ikke');
+            alert(language === 'en' ? 'Speech recognition not supported' : 'Stemmegenkendelse understøttes ikke');
             return;
           }
           
@@ -744,7 +898,7 @@
           }
           
           const recog = new SR();
-          recog.lang = 'da-DK';
+          recog.lang = language === 'en' ? 'en-US' : 'da-DK';
           recog.continuous = false;
           recog.interimResults = false;
           
@@ -761,8 +915,113 @@
           recognitionRef.current = recog;
         };
 
+        const handleLanguageSelect = (lang) => {
+          setLanguage(lang);
+          setLanguageSelected(true);
+        };
+
+        // Function to play pre-recorded scripted audio
+        const playScriptedAudio = (stageName) => {
+          console.log('[AUDIO] Playing pre-recorded audio for stage:', stageName);
+          const el = audioEl.current;
+          if (!el) {
+            console.error('[AUDIO] Audio element not available');
+            return;
+          }
+          
+          // Use pre-recorded audio files (generated by generate_scripted_audio.py)
+          const audioFile = `/static/audio/${language}_${stageName}.mp3`;
+          console.log('[AUDIO] Loading:', audioFile);
+          
+          el.src = audioFile;
+          setAudioReady(true);
+          
+          // Auto-play the scripted audio
+          el.play().then(() => {
+            console.log('[AUDIO] Pre-recorded audio playing');
+          }).catch((err) => {
+            console.error('[AUDIO] Failed to play pre-recorded audio:', err);
+            console.log('[AUDIO] User must click AFSPIL button');
+          });
+        };
+
+        const handleStart = () => {
+          // Play startup music (placeholder - user needs to add music file)
+          // playMusic('startup');
+          setStage('WELCOME');
+          
+          // Auto-speak welcome message with pre-recorded audio
+          setTimeout(() => {
+            const welcomeMsg = scripts[language].WELCOME;
+            setMsgs([{ role: 'bot', text: welcomeMsg }]);
+            // Play pre-recorded audio immediately
+            playScriptedAudio('WELCOME');
+          }, 500);
+        };
+
+        const advanceStage = () => {
+          const stageOrder = ['START', 'WELCOME', 'MEMORY_1', 'MEMORY_2', 'QUESTION_1', 'QUESTION_2', 'GOODBYE'];
+          const currentIndex = stageOrder.indexOf(stage);
+          const nextStage = stageOrder[currentIndex + 1];
+          
+          if (nextStage) {
+            setStage(nextStage);
+            
+            // Play transition music between stages (placeholder)
+            // playMusic('transition');
+            
+            // Auto-show next scripted message with pre-recorded audio
+            if (scripts[language][nextStage]) {
+              setTimeout(() => {
+                const stageMsg = scripts[language][nextStage];
+                setMsgs(m => [...m, { role: 'bot', text: stageMsg }]);
+                // Play pre-recorded audio immediately
+                playScriptedAudio(nextStage);
+              }, 500);
+            }
+            
+            // If GOODBYE, end experience after message
+            if (nextStage === 'GOODBYE') {
+              setTimeout(() => {
+                // playMusic('ending');
+              }, 2000);
+            }
+          }
+        };
+
+        const getStageMode = () => {
+          // MEMORY stages save without AI response, QUESTION stages run full pipeline
+          return (stage === 'MEMORY_1' || stage === 'MEMORY_2') ? 'memory' : 'question';
+        };
+
+        const getPlaceholder = () => {
+          if (language === 'en') {
+            if (stage === 'MEMORY_1' || stage === 'MEMORY_2') return 'Share a memory...';
+            if (stage === 'QUESTION_1' || stage === 'QUESTION_2') return 'Ask a question...';
+            return 'Type your message...';
+          } else {
+            if (stage === 'MEMORY_1' || stage === 'MEMORY_2') return 'Del en erindring...';
+            if (stage === 'QUESTION_1' || stage === 'QUESTION_2') return 'Stil et spørgsmål...';
+            return 'Skriv din besked...';
+          }
+        };
+
+        const getButtonText = () => {
+          if (stage === 'START') return language === 'en' ? 'START' : 'START';
+          if (stage === 'WELCOME') return language === 'en' ? 'CONTINUE' : 'FORTSÆT';
+          if (stage === 'GOODBYE') return language === 'en' ? 'FINISH' : 'AFSLUT';
+          return language === 'en' ? 'SHARE' : 'DEL';
+        };
+
+        if (!languageSelected) {
+          return React.createElement(LanguageSelector, { onSelect: handleLanguageSelect });
+        }
+
         if (booting) {
-          return React.createElement(BootScreen, { onComplete: () => setBooting(false) });
+          return React.createElement(BootScreen, { 
+            onComplete: () => setBooting(false),
+            language: language
+          });
         }
 
         return React.createElement('div', { className: 'wrap' },
@@ -778,16 +1037,20 @@
           }),
           React.createElement('div', { className: 'panel' },
             React.createElement('div', { className: 'panel-head' },
-              React.createElement('span', null, '◉ KOMMUNIKATIONSTERMINAL'),
-              React.createElement('span', null, loading ? 'BEHANDLER...' : 'KLAR')
+              React.createElement('span', null, `◉ ${stage === 'START' ? (language === 'en' ? 'READY TO BEGIN' : 'KLAR TIL START') : stage === 'MEMORY_1' || stage === 'MEMORY_2' ? (language === 'en' ? 'MEMORY SHARING' : 'ERINDRINGSDELING') : stage === 'QUESTION_1' || stage === 'QUESTION_2' ? (language === 'en' ? 'ASKING QUESTIONS' : 'STILLER SPØRGSMÅL') : stage === 'GOODBYE' ? (language === 'en' ? 'JOURNEY COMPLETE' : 'REJSE AFSLUTTET') : (language === 'en' ? 'WELCOME' : 'VELKOMMEN')}`),
+              React.createElement('span', null, loading ? (language === 'en' ? 'PROCESSING...' : 'BEHANDLER...') : (language === 'en' ? 'READY' : 'KLAR'))
             ),
             React.createElement('div', { className: 'chat', ref: chatRef },
-              msgs.length === 0 && React.createElement('div', { className: 'intro' }, 
-                'Velkommen til Carte de Continuonus. Tryk TALK for at begynde...'
+              msgs.length === 0 && stage === 'START' && React.createElement('div', { className: 'intro' }, 
+                language === 'en' 
+                  ? 'A Long Road Ahead (Ringsted Rider)\n\nBot de ContinuOnus (2025)\n\nPress START to begin the journey...'
+                  : 'En Lang Vej Foran Os (Ringsted Rider)\n\nBot de ContinuOnus (2025)\n\nTryk START for at begynde rejsen...'
               ),
               msgs.map((m, i) => React.createElement('div', { key: i, className: 'msg' },
                 React.createElement('div', { className: 'meta ' + m.role }, 
-                  m.role === 'user' ? '→ DIG' : '← BOT'
+                  m.role === 'user' 
+                    ? (language === 'en' ? '→ YOU' : '→ DIG')
+                    : '← BOT'
                 ),
                 React.createElement('div', null, m.text)
               )),
@@ -795,46 +1058,60 @@
                 React.createElement('div', { className: 'meta bot' }, '← BOT'),
                 React.createElement('div', null, 
                   React.createElement('span', { className: 'loading-dots' }, 
-                    loadingStage === 0 ? 'Henter kildedata' :
-                    loadingStage === 1 ? 'Analyserer kollektive ønsker' :
-                    loadingStage === 2 ? 'Søger i samtalehistorik' :
-                    loadingStage === 3 ? 'Forbinder ekkoer fra fortiden' :
-                    'Genererer synsk besked'
+                    language === 'en' ? (
+                      loadingStage === 0 ? 'Fetching source data' :
+                      loadingStage === 1 ? 'Analyzing collective wishes' :
+                      loadingStage === 2 ? 'Searching conversation history' :
+                      loadingStage === 3 ? 'Connecting echoes from the past' :
+                      'Generating clairvoyant message'
+                    ) : (
+                      loadingStage === 0 ? 'Henter kildedata' :
+                      loadingStage === 1 ? 'Analyserer kollektive ønsker' :
+                      loadingStage === 2 ? 'Søger i samtalehistorik' :
+                      loadingStage === 3 ? 'Forbinder ekkoer fra fortiden' :
+                      'Genererer synsk besked'
+                    )
                   )
                 )
               )
             )
           ),
           React.createElement(Waveform, { active: audioPlaying }),
-          React.createElement('div', { className: 'controls' },
-            React.createElement('button', {
+          (stage !== 'START' && stage !== 'GOODBYE') && React.createElement('div', { className: 'controls' },
+            (stage === 'MEMORY_1' || stage === 'MEMORY_2' || stage === 'QUESTION_1' || stage === 'QUESTION_2') && React.createElement('button', {
               className: 'control-btn' + (isListening ? ' active' : ''),
               onClick: startVoice,
               type: 'button'
-            }, isListening ? '◉ LYTTER' : '🎤 TAL'),
+            }, isListening 
+              ? (language === 'en' ? '◉ LISTENING' : '◉ LYTTER')
+              : (language === 'en' ? '🎤 TALK' : '🎤 TAL')
+            ),
             React.createElement('button', {
               className: 'control-btn' + (audioPlaying ? ' active' : ''),
               onClick: togglePlayPause,
               disabled: !audioReady
-            }, audioPlaying ? '⏸ PAUSE' : '▶ AFSPIL'),
+            }, audioPlaying 
+              ? '⏸ PAUSE'
+              : (language === 'en' ? '▶ PLAY' : '▶ AFSPIL')
+            ),
             React.createElement('button', {
               className: 'control-btn',
               onClick: skipAudio,
               disabled: audioQueue.length === 0 && !audioPlaying
-            }, '⏭ SPRING OVER')
+            }, language === 'en' ? '⏭ SKIP' : '⏭ SPRING OVER')
           ),
           React.createElement('form', { className: 'input-area', onSubmit: send },
-            React.createElement('input', {
+            (stage !== 'START' && stage !== 'WELCOME' && stage !== 'GOODBYE') && React.createElement('input', {
               value: input,
               onChange: e => setInput(e.target.value),
-              placeholder: 'Skriv din besked...',
+              placeholder: getPlaceholder(),
               disabled: loading
             }),
             React.createElement('button', {
-              className: 'control-btn',
+              className: 'control-btn start-btn',
               type: 'submit',
-              disabled: loading || !input.trim()
-            }, loading ? '...' : 'SEND')
+              disabled: loading || (stage !== 'START' && stage !== 'WELCOME' && stage !== 'GOODBYE' && !input.trim())
+            }, loading ? '...' : getButtonText())
           ),
           React.createElement('audio', { id: 'bot-audio', ref: audioEl, hidden: true })
         );

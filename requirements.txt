@@ -1,27 +1,18 @@
 # Core FastAPI and server
-fastapi==0.115.4
-uvicorn==0.32.1
-pydantic==2.10.3
+fastapi==0.118.0
+uvicorn==0.37.0
 python-dotenv==1.1.1
+python-multipart==0.0.20
 
 # AI/ML APIs
-huggingface_hub==0.34.4
-elevenlabs==1.14.1
+huggingface-hub==0.34.4
+elevenlabs==2.16.0
 
-# LangChain stack
-langchain==0.3.27
-langchain_community==0.3.29
-langchain_huggingface==0.3.1
+# LangChain for embeddings
+langchain-huggingface==0.3.1
 
 # Vector database
 pinecone==7.3.0
 
-# Embeddings stack (CPU only - lighter for PythonAnywhere)
-torch==2.8.0
-transformers==4.56.0
-sentence-transformers==5.1.0
-tokenizers==0.22.0
-
-# Note: Remove streamlit if not used
-# streamlit==1.49.1
-# streamlit_nested_layout==0.1.4
+# Note: Using HuggingFace cloud embeddings (no local models/PyTorch needed)
+# Total size: ~50-100MB (vs 900MB+ with sentence-transformers)
