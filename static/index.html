@@ -805,7 +805,9 @@
           }
           
           if (stage === 'GOODBYE') {
-            // End experience
+            // End experience and reset to language selection
+            console.log('[GOODBYE] User clicked finish, resetting experience');
+            resetExperience();
             return;
           }
           
@@ -920,6 +922,38 @@
           setLanguageSelected(true);
         };
 
+        // Reset the entire experience back to language selection
+        const resetExperience = () => {
+          console.log('[RESET] Resetting experience to language selection');
+          
+          // Stop any playing audio
+          const el = audioEl.current;
+          if (el) {
+            el.pause();
+            el.currentTime = 0;
+            el.src = '';
+          }
+          
+          // Clear audio queue
+          setAudioQueue([]);
+          
+          // Reset all state
+          setLanguageSelected(false);
+          setBooting(false);
+          setStage('START');
+          setMsgs([]);
+          setInput('');
+          setLoading(false);
+          setAudioPlaying(false);
+          setAudioReady(false);
+          setIsListening(false);
+          
+          // Generate new session ID for next experience
+          setSessionId('session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9));
+          
+          console.log('[RESET] Ready for new experience');
+        };
+
         // Function to play pre-recorded scripted audio
         const playScriptedAudio = (stageName) => {
           console.log('[AUDIO] Playing pre-recorded audio for stage:', stageName);
@@ -980,11 +1014,22 @@
               }, 500);
             }
             
-            // If GOODBYE, end experience after message
+            // If GOODBYE, wait for audio to finish then auto-reset after delay
             if (nextStage === 'GOODBYE') {
-              setTimeout(() => {
-                // playMusic('ending');
-              }, 2000);
+              const el = audioEl.current;
+              if (el) {
+                const autoResetAfterGoodbye = () => {
+                  console.log('[GOODBYE] Audio finished, will auto-reset in 5 seconds');
+                  el.removeEventListener('ended', autoResetAfterGoodbye);
+                  // playMusic('ending');
+                  // Auto-reset after 5 seconds (user can also click button to reset immediately)
+                  setTimeout(() => {
+                    console.log('[GOODBYE] Auto-resetting experience');
+                    resetExperience();
+                  }, 5000);
+                };
+                el.addEventListener('ended', autoResetAfterGoodbye);
+              }
             }
           }
         };
