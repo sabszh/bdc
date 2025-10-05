@@ -187,3 +187,18 @@ async def api_chat(
         "audio_b64": audio_b64,
         "session_history": result["session_history"],  # structured, sorted
     })
+
+if __name__ == "__main__":
+    import uvicorn
+    import os
+    
+    # Get port from environment variable (Render sets this)
+    port = int(os.getenv("PORT", 8000))
+    
+    # IMPORTANT: Bind to 0.0.0.0 for Render (not 127.0.0.1)
+    uvicorn.run(
+        "app:app",
+        host="0.0.0.0",  # Changed from 127.0.0.1
+        port=port,        # Use PORT env variable
+        reload=False      # Disable reload in production
+    )
